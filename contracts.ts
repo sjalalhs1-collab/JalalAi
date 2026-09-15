@@ -1,11 +1,47 @@
-export type TaskMode='fast'|'deep'|'verified';
-export type TaskStatus='planning'|'running'|'verifying'|'completed'|'failed';
-export type Permission='web'|'files'|'code'|'externalActions'|'sensitiveData';
-export interface PermissionSet{web:boolean;files:boolean;code:boolean;externalActions:boolean;sensitiveData:boolean}
-export interface TaskAttachment{id:string;name:string;type?:string;text:string;size:number}
-export interface TaskRequest{id:string;input:string;mode:TaskMode;language?:string;context?:Record<string,unknown>;permissions?:PermissionSet;attachments?:TaskAttachment[]}
-export interface TaskStep{id:string;goal:string;expert:string;tools:string[];dependsOn:string[];verification:string[]}
-export interface TaskPlan{taskId:string;steps:TaskStep[];rationale:string}
-export interface Evidence{source:string;claim:string;confidence:number;retrievedAt:number}
-export interface AgentOutput{expert:string;text:string;confidence:number;evidence:Evidence[]}
-export interface TaskResult{taskId:string;status:TaskStatus;answer?:string;confidence:number;evidence:Evidence[];errors:string[];traceId:string;plan?:TaskPlan;steps?:AgentOutput[]}
+/** Production-boundary contracts.
+ * These are provider-neutral interfaces; implementations must be injected by deployment.
+ */
+export type PlanId = 'free' | 'pro' | 'ultra';
+export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface UserIdentity {
+  userId: string;
+  email: string;
+  roles: string[];
+  mfaVerified: boolean;
+}
+
+export interface Entitlement {
+  userId: string;
+  plan: PlanId;
+  aiPromptsPerDay: number | 'fair-use-unlimited';
+  validUntil: string | null;
+  source: 'internal' | 'web-gateway' | 'google-play';
+  externalPurchaseId?: string;
+}
+
+export interface TaskRecord {
+  taskId: string;
+  userId: string;
+  projectId?: string;
+  status: TaskStatus;
+  idempotencyKey: string;
+  createdAt: string;
+  updatedAt: string;
+  attempts: number;
+  errorCode?: string;
+}
+
+export interface PermissionDecision {
+  allowed: boolean;
+  reason: string;
+  requiresApproval: boolean;
+  scope: string;
+}
+
+export interface ProductionAdapters {
+  authenticate(token: string): Promise<UserIdentity | null>;
+  getEntitlement(userId: string): Promise<Entitlement>;
+  enqueue(task: TaskRecord): Promise<void>;
+  authorize(identity: UserIdentity, action: string, resource?: string): Promise<PermissionDecision>;
+}
